@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'storage_manager.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LogEntry {
   String name;
@@ -29,11 +30,18 @@ class LogProvider with ChangeNotifier {
   List<LogEntry> get logs => List.unmodifiable(_logs);
 
   void addLog(String behaviorName) {
-    _logs.add(LogEntry(name: behaviorName, start: DateTime.now()));
+    DateTime now = DateTime.now();
+    // Remove milliseconds and microseconds
+    DateTime cleanNow = DateTime(now.year, now.month, now.day, now.hour, now.minute, now.second);
+    _logs.add(LogEntry(name: behaviorName, start: cleanNow));
     notifyListeners();
     saveLogs();
   }
-
+  // void addLog(String behaviorName) {
+  //   _logs.add(LogEntry(name: behaviorName, start: DateTime.now()));
+  //   notifyListeners();
+  //   saveLogs();
+  // }
   void endLog(String behaviorName) {
     LogEntry? matchingLog;
     for (var log in _logs) {
@@ -44,11 +52,29 @@ class LogProvider with ChangeNotifier {
     }
 
     if (matchingLog != null) {
-      matchingLog.end = DateTime.now();
+      DateTime now = DateTime.now();
+      // Remove milliseconds and microseconds
+      DateTime cleanNow = DateTime(now.year, now.month, now.day, now.hour, now.minute, now.second);
+      matchingLog.end = cleanNow;
       notifyListeners();
       saveLogs();
     }
   }
+  // void endLog(String behaviorName) {
+  //   LogEntry? matchingLog;
+  //   for (var log in _logs) {
+  //     if (log.name == behaviorName && log.end == null) {
+  //       matchingLog = log;
+  //       break; // Stop the loop once the first matching log is found
+  //     }
+  //   }
+  //
+  //   if (matchingLog != null) {
+  //     matchingLog.end = DateTime.now();
+  //     notifyListeners();
+  //     saveLogs();
+  //   }
+  // }
 
   void toggleLog(String behaviorName) {
     LogEntry? matchingLog;
@@ -64,12 +90,38 @@ class LogProvider with ChangeNotifier {
       endLog(behaviorName); // Ends the log if it's in progress
     } else {
       addLog(behaviorName); // Starts a new log if none is in progress
-      if (behaviorName != "In Room") {
+      if (behaviorName != "재실") {
         // Ensure "In Room" is logged first if not already
         ensureInRoomStarted();
       }
     }
   }
+
+
+  void updateLog(int index, {String? name, DateTime? startTime, DateTime? endTime}) {
+    var log = _logs[index];
+    if (name != null) log.name = name;
+    if (startTime != null) {
+      // Remove milliseconds and microseconds from startTime
+      DateTime cleanStartTime = DateTime(startTime.year, startTime.month, startTime.day, startTime.hour, startTime.minute, startTime.second);
+      log.start = cleanStartTime;
+    }
+    if (endTime != null) {
+      // Remove milliseconds and microseconds from endTime
+      DateTime cleanEndTime = DateTime(endTime.year, endTime.month, endTime.day, endTime.hour, endTime.minute, endTime.second);
+      log.end = cleanEndTime;
+    }
+    notifyListeners();
+  }
+
+
+  // void updateLog(int index, {String? name, DateTime? startTime, DateTime? endTime}) {
+  //   var log = _logs[index];
+  //   if (name != null) log.name = name;
+  //   if (startTime != null) log.start = startTime;
+  //   if (endTime != null) log.end = endTime;
+  //   notifyListeners();
+  // }
 
 
   // // Special handling for "In Room" behavior
@@ -86,11 +138,11 @@ class LogProvider with ChangeNotifier {
   // }
   void toggleInRoom() {
     // Check if "In Room" is currently in progress
-    bool isRoomLogActive = isBehaviorInProgress("In Room");
+    bool isRoomLogActive = isBehaviorInProgress("재실");
 
     if (!isRoomLogActive) {
       // If not, start "In Room" log
-      addLog("In Room");
+      addLog("재실");
     } else {
       // If "In Room" is active, end it and all other logs
       endAllBehaviors();
@@ -99,10 +151,13 @@ class LogProvider with ChangeNotifier {
 
   void endAllBehaviors() {
     DateTime now = DateTime.now();
+    DateTime cleanNow = DateTime(now.year, now.month, now.day, now.hour, now.minute, now.second);
+
     for (var log in _logs.where((log) => log.end == null)) {
-      log.end = now;
+      log.end = cleanNow;
     }
     notifyListeners();
+    saveLogs();
   }
 
   bool isBehaviorInProgress(String behaviorName) {
@@ -115,15 +170,17 @@ class LogProvider with ChangeNotifier {
 
   // Ensures "In Room" behavior is started
   void ensureInRoomStarted() {
-    if (!isBehaviorInProgress("In Room")) {
-      addLog("In Room");
+    if (!isBehaviorInProgress("재실")) {
+      addLog("재실");
     }
   }
 
   // Ends all in-progress logs
   void endAllLogs() {
     for (var log in _logs.where((log) => log.end == null)) {
-      log.end = DateTime.now();
+      DateTime now = DateTime.now();
+      DateTime cleanNow = DateTime(now.year, now.month, now.day, now.hour, now.minute, now.second);
+      log.end = cleanNow;
     }
     notifyListeners();
     saveLogs();
@@ -137,6 +194,41 @@ class LogProvider with ChangeNotifier {
   // Load logs from storage
   void loadLogs() async {
     _logs = await StorageManager.loadLogs();
+    notifyListeners();
+  }
+
+
+  // Future<void> _loadLogs() async {
+  //   final prefs = await SharedPreferences.getInstance();
+  //   // Assuming logs are serialized as a JSON string; adjust based on your implementation
+  //   String? logsJson = prefs.getString('logs');
+  //   if (logsJson != null) {
+  //     // Deserialize logsJson into _logs
+  //     // For example, if you're using a package like json_serializable
+  //     // _logs = LogEntry.decode(logsJson);
+  //     notifyListeners();
+  //   }
+  //   _checkInRoomStatus();
+  // }
+
+  // void _checkInRoomStatus() {
+  //   // Check if "In Room" is active based on _logs state and adjust app state accordingly
+  //   bool isInRoomActive = isBehaviorInProgress("In Room");
+  //   if (!isInRoomActive) {
+  //     // Handle case where "In Room" should not be active
+  //   }
+  // }
+
+  void _checkInRoomStatus() {
+    // Check if "In Room" is active based on _logs state and adjust app state accordingly
+    bool isInRoomActive = isBehaviorInProgress("재실");
+    if (!isInRoomActive) {
+      // Handle case where "In Room" should not be active
+    }
+  }
+
+  void removeLog(int index) {
+    _logs.removeAt(index);
     notifyListeners();
   }
 
